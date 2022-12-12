@@ -8,17 +8,15 @@ fn newline(indent: i32, iterator: &mut Peekable<Chars>, output: &mut String) {
     for _ in 0..(indent * 2) {
         output.push(' ');
     }
+    eat_whitespace(iterator);
+}
 
-    loop {
-        match iterator.peek() {
-            Some(peek) => {
-                if peek.is_whitespace() {
-                    iterator.next();
-                } else {
-                    break;
-                }
-            }
-            None => break,
+fn eat_whitespace(iterator: &mut Peekable<Chars>) {
+    while let Some(peek) = iterator.peek() {
+        if peek.is_whitespace() {
+            iterator.next();
+        } else {
+            break;
         }
     }
 }
@@ -30,9 +28,7 @@ fn main() {
 }
 
 fn indent(input: &str) -> String {
-    let re = regex::Regex::new(r",\s+").unwrap();
-
-    let input = re.replace_all(input, ",").to_string();
+    let input = input.to_string();
 
     let mut output = String::new();
     let mut indent = 0;
@@ -61,11 +57,11 @@ fn indent(input: &str) -> String {
 }
 
 fn is_open(c: char) -> bool {
-    return c == '(' || c == '[' || c == '{';
+    c == '(' || c == '[' || c == '{'
 }
 
 fn is_close(c: char) -> bool {
-    return c == ')' || c == ']' || c == '}';
+    c == ')' || c == ']' || c == '}'
 }
 
 #[cfg(test)]
