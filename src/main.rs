@@ -1,38 +1,63 @@
 use std::io::Read;
+use std::iter::Peekable;
+use std::str::Chars;
+
+/// Push a newline, add indention for the next line, and eat all whitespace.
+fn newline(indent: i32, iterator: &mut Peekable<Chars>, output: &mut String) {
+    output.push('\n');
+    for _ in 0..(indent * 2) {
+        output.push(' ');
+    }
+
+    loop {
+        match iterator.peek() {
+            Some(peek) => {
+                if peek.is_whitespace() {
+                    iterator.next();
+                } else {
+                    break;
+                }
+            }
+            None => break,
+        }
+    }
+}
 
 fn main() {
     let mut input = String::new();
     std::io::stdin().read_to_string(&mut input).unwrap();
+    println!("{}", indent(&input));
+}
 
+fn indent(input: &str) -> String {
     let re = regex::Regex::new(r",\s+").unwrap();
-    
-    input = re.replace_all(&input, ",").to_string();
+
+    let input = re.replace_all(input, ",").to_string();
 
     let mut output = String::new();
     let mut indent = 0;
-    for char in input.chars() {
-        if char == '\n' {
-            // output.push('\n');
-            // push_indent(indent, &mut output);
-        } else if char == ',' {
-            output.push(char);
-            output.push('\n');
-            push_indent(indent, &mut output);
-        } else if is_open(char) {
+
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\n' {
+            newline(indent, &mut chars, &mut output);
+        } else if c == ',' {
+            output.push(c);
+            newline(indent, &mut chars, &mut output);
+        } else if is_open(c) {
             indent += 1;
-            output.push(char);
-            output.push('\n');
-            push_indent(indent, &mut output);
-        } else if is_close(char) {
+            output.push(c);
+            newline(indent, &mut chars, &mut output);
+        } else if is_close(c) {
             indent -= 1;
-            output.push('\n');
-            push_indent(indent, &mut output);
-            output.push(char);
+            newline(indent, &mut chars, &mut output);
+            output.push(c);
         } else {
-            output.push(char);
+            output.push(c);
         }
     }
-    println!("{output}");
+
+    output
 }
 
 fn is_open(c: char) -> bool {
@@ -43,28 +68,35 @@ fn is_close(c: char) -> bool {
     return c == ')' || c == ']' || c == '}';
 }
 
-fn push_indent(i: i32, output: &mut String) {
-    for _ in 0..(i*2) {
-        output.push(' ');
-    }
-}
-
 #[cfg(test)]
 mod test {
+    use std::fs;
+
+    use super::*;
+    use pretty_assertions::assert_eq;
+
     #[test]
-    fn test_input() {
-        let input = r"CasingAssembly(minInsideDiameter=Distance(value=20.0, unit=meter), 
-        minOutsideDiameter=Distance(value=20.0, unit=meter), 
-        maxOutsideDiameter=Distance(value=20.0, unit=meter), 
-        originalMeasuredDepthTop=Distance(value=200.0, unit=meter), 
-        originalMeasuredDepthBase=Distance(value=300.0, unit=meter), 
-        type=null, reportDescription=null, sectionTypeCode=null, 
-        cementing=null, components=[CasingComponent(minInsideDiameter=Distance(value=20.0, unit=meter), 
-        maxOutsideDiameter=null, topMeasuredDepth=null, baseMeasuredDepth=null, grade=null, 
-        connectionName=null, joints=null, description=null, manufacturer=null, typeCode=null, 
-        linearWeight=null), CasingComponent(minInsideDiameter=null, maxOutsideDiameter=null, 
-            topMeasuredDepth=Distance(value=150.0, unit=meter), baseMeasuredDepth=Distance(value=150.0, 
-                unit=meter), grade=null, connectionName=null, joints=null, description=null, 
-                manufacturer=null, typeCode=null, linearWeight=null)])";
+    fn test_files() {
+        let files: Vec<_> = fs::read_dir("examples")
+            .unwrap()
+            .filter_map(Result::ok)
+            .collect();
+        let test_files: Vec<_> = files
+            .iter()
+            .filter(|t| t.path().to_str().unwrap().ends_with(".txt"))
+            .collect();
+        for file in test_files.iter() {
+            let input = fs::read_to_string(file.path()).unwrap();
+            let expected_output_path = format!("{}.output", file.path().display());
+            let a = std::path::Path::new(&expected_output_path);
+            let output = indent(&input);
+            if std::env::var("OVERWRITE_TEST_FILES").unwrap_or("false".to_string()) == "true" {
+                fs::write(a, &output).unwrap();
+            }
+            if a.exists() {
+                let expected_output = fs::read_to_string(a).unwrap();
+                assert_eq!(expected_output, output);
+            }
+        }
     }
 }

@@ -1,0 +1,13 @@
+CasingAssembly(minInsideDiameter=Distance(value=20.0, unit=meter), 
+        minOutsideDiameter=Distance(value=20.0, unit=meter), 
+        maxOutsideDiameter=Distance(value=20.0, unit=meter), 
+        originalMeasuredDepthTop=Distance(value=200.0, unit=meter), 
+        originalMeasuredDepthBase=Distance(value=300.0, unit=meter), 
+        type=null, reportDescription=null, sectionTypeCode=null, 
+        cementing=null, components=[CasingComponent(minInsideDiameter=Distance(value=20.0, unit=meter), 
+        maxOutsideDiameter=null, topMeasuredDepth=null, baseMeasuredDepth=null, grade=null, 
+        connectionName=null, joints=null, description=null, manufacturer=null, typeCode=null, 
+        linearWeight=null), CasingComponent(minInsideDiameter=null, maxOutsideDiameter=null, 
+            topMeasuredDepth=Distance(value=150.0, unit=meter), baseMeasuredDepth=Distance(value=150.0, 
+                unit=meter), grade=null, connectionName=null, joints=null, description=null, 
+                manufacturer=null, typeCode=null, linearWeight=null)])

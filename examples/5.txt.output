@@ -1,0 +1,12 @@
+items: [
+  Hello{
+    world
+  },
+  Foo(
+    bar: 3
+  ),
+  Fizz: {
+    hello:1,
+    world:3
+  }
+]
