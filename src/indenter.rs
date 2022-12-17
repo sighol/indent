@@ -1,7 +1,7 @@
 use nom::{
     branch::alt,
-    bytes::complete::{tag, take_while, take_while_m_n},
-    character::complete::{anychar, char, none_of, one_of},
+    bytes::complete::{tag, take_while, take_while1, take_while_m_n},
+    character::complete::{char, none_of, one_of},
     combinator::eof,
     multi::{many0, many1},
     sequence::preceded,
@@ -17,56 +17,55 @@ pub fn indent(input: &str, indent_size: u8) -> String {
 
     let mut chars = input.as_str();
     while !chars.is_empty() {
-        if let Some((i, ind)) = next(chars, indent, &mut output, indent_size) {
-            chars = i;
-            indent = ind;
-        } else if let Ok((i, c)) = anychar::<&str, ()>(chars) {
-            output.push(c);
-            chars = i;
-        }
+        let (i, ind) = next(chars, indent, &mut output, indent_size);
+        chars = i;
+        indent = ind;
     }
 
     output
 }
 
-fn next<'a>(
-    i: &'a str,
-    indent: i32,
-    output: &mut String,
-    indent_size: u8,
-) -> Option<(&'a str, i32)> {
+fn next<'a>(i: &'a str, indent: i32, output: &mut String, indent_size: u8) -> (&'a str, i32) {
     let mut indent = indent;
     if let Ok((i, s)) = terminated(empty_parens, space)(i) {
         output.push_str(&s);
-        Some((i, indent))
+        (i, indent)
     } else if let Ok((i, c)) = terminated(lpar, space)(i) {
         indent += 1;
         output.push(c);
         newline(indent, output, indent_size);
-        Some((i, indent))
+        (i, indent)
     } else if let Ok((i, c)) = terminated(rpar, space)(i) {
         indent -= 1;
         newline(indent, output, indent_size);
         output.push(c);
-        Some((i, indent))
+        (i, indent)
     } else if let Ok((i, _)) = terminated(comma, space)(i) {
         output.push(',');
         // Only output a newline if this is a trailing comma
         if !is_end_of_block(i) {
             newline(indent, output, indent_size);
         }
-        Some((i, indent))
+        (i, indent)
     } else if let Ok((i, c)) = terminated(string, space)(i) {
         output.push_str(&c);
-        Some((i, indent))
+        (i, indent)
     } else if let Ok((i, _)) = terminated(many1(char('\n')), space)(i) {
         if !is_end_of_block(i) {
             newline(indent, output, indent_size);
         }
-        Some((i, indent))
+        (i, indent)
+    } else if let Ok((i, s)) = anything_else(i) {
+        output.push_str(s);
+        (i, indent)
     } else {
-        None
+        panic!("Parsing failed, this shouldn't be possible. input=`{}`", i);
     }
+}
+
+fn anything_else(i: &str) -> IResult<&str, &str> {
+    let chars = "([{}])\"\n,";
+    take_while1(|c| !chars.contains(c))(i)
 }
 
 fn is_end_of_block(i: &str) -> bool {
@@ -81,7 +80,7 @@ fn comma(i: &str) -> IResult<&str, ()> {
 
 fn space(i: &str) -> IResult<&str, &str> {
     let chars = " \t\r\n";
-    take_while(move |c| chars.contains(c))(i)
+    take_while(|c| chars.contains(c))(i)
 }
 
 fn empty_parens(i: &str) -> IResult<&str, String> {
@@ -131,6 +130,7 @@ fn escaped(i: &str) -> IResult<&str, String> {
             't' => Ok((rest, "\\t".to_string())),
             '\'' => Ok((rest, "\\'".to_string())),
             '\"' => Ok((rest, "\\\"".to_string())),
+            '\\' => Ok((rest, "\\\\".to_string())),
             _ => panic!("Didn't now how to handle {}", c),
         },
         Err(e) => Err(e),

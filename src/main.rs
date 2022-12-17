@@ -33,5 +33,6 @@ fn main() {
         }
     };
 
-    println!("{}", indent(&input, args.indent));
+    let output = indent(&input, args.indent);
+    println!("{}", output);
 }
