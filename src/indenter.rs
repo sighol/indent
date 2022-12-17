@@ -73,7 +73,7 @@ fn space(i: &str) -> IResult<&str, &str> {
 }
 
 fn empty_parens(i: &str) -> IResult<&str, String> {
-    let (i, start) = lpar(i)?;
+    let (i, start) = terminated(lpar, space)(i)?;
     let (i, end) = rpar(i)?;
     let mut s = String::new();
     s.push(start);
