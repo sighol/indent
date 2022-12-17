@@ -1,6 +1,6 @@
 # Indent
 
-Stupid and lacking parser and reformatter that reads from stdin and produces indentent output.
+Parses the input and tries to create indented output.
 
 ## Usage
 
