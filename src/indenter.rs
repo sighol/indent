@@ -4,7 +4,7 @@ use nom::{
     bytes::complete::{tag, take_while_m_n},
     character::complete::none_of,
     character::complete::{anychar, char, one_of},
-    multi::many0,
+    multi::{many0, many1},
     sequence::preceded,
     sequence::terminated,
     IResult,
@@ -52,6 +52,7 @@ fn next<'a>(
         Some((i, indent))
     } else if let Ok((i, _)) = terminated(comma, space)(i) {
         output.push(',');
+        // Only output a newline if this is a trailing comma
         if rpar(i).is_err() {
             newline(indent, output, indent_size);
         }
@@ -59,7 +60,10 @@ fn next<'a>(
     } else if let Ok((i, c)) = terminated(string, space)(i) {
         output.push_str(&c);
         Some((i, indent))
-    } else if let Ok((i, _)) = terminated(char('\n'), space)(i) {
+    } else if let Ok((i, _)) = terminated(many1(char('\n')), space)(i) {
+        if rpar(i).is_err() {
+            output.push(' ');
+        }
         Some((i, indent))
     } else {
         None
@@ -135,7 +139,11 @@ fn parse_str(i: &str) -> IResult<&str, String> {
         Ok((rest, c)) => Ok((rest, c.to_string())),
         Err(x) => Err(x),
     };
-    let string_path = alt((unicode_letter, escaped, any_string_char));
+    let newline_in_string = |i| match char('\n')(i) {
+        Ok((rest, _)) => Ok((rest, "\\n".to_string())),
+        Err(x) => Err(x),
+    };
+    let string_path = alt((unicode_letter, escaped, newline_in_string, any_string_char));
     let (i, parts) = many0(string_path)(i)?;
     let joined = parts.join("");
     Ok((i, joined))
