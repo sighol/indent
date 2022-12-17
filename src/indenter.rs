@@ -1,9 +1,8 @@
 use nom::{
     branch::alt,
-    bytes::complete::take_while,
-    bytes::complete::{tag, take_while_m_n},
-    character::complete::none_of,
-    character::complete::{anychar, char, one_of},
+    bytes::complete::{tag, take_while, take_while_m_n},
+    character::complete::{anychar, char, none_of, one_of},
+    combinator::eof,
     multi::{many0, many1},
     sequence::preceded,
     sequence::terminated,
@@ -53,7 +52,7 @@ fn next<'a>(
     } else if let Ok((i, _)) = terminated(comma, space)(i) {
         output.push(',');
         // Only output a newline if this is a trailing comma
-        if rpar(i).is_err() {
+        if !is_end_of_block(i) {
             newline(indent, output, indent_size);
         }
         Some((i, indent))
@@ -61,13 +60,17 @@ fn next<'a>(
         output.push_str(&c);
         Some((i, indent))
     } else if let Ok((i, _)) = terminated(many1(char('\n')), space)(i) {
-        if rpar(i).is_err() {
-            output.push(' ');
+        if !is_end_of_block(i) {
+            newline(indent, output, indent_size);
         }
         Some((i, indent))
     } else {
         None
     }
+}
+
+fn is_end_of_block(i: &str) -> bool {
+    eof::<&str, ()>(i).is_ok() || rpar(i).is_ok()
 }
 
 fn comma(i: &str) -> IResult<&str, ()> {
