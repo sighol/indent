@@ -5,7 +5,7 @@ Stupid and lacking parser and reformatter that reads from stdin and produces ind
 ## Usage
 
 ```shell
-$ echo "items: [Hello{world}, Foo(bar: 3), Fizz: {hello:1, world:3}]" | indent
+$ echo 'items: [Hello{world}, Foo(bar: 3), Bar: {hello:1, world:3}]' | indent
 items: [
   Hello{
     world
@@ -13,15 +13,19 @@ items: [
   Foo(
     bar: 3
   ),
-  Fizz: {
+  Bar: {
     hello:1,
     world:3
   }
 ]
 ```
 
-## TODO
+### String and unicode support
 
-- Make it understand strings so that it doesn't indent inside strings.
-- Right now it replaces "\n" with "". It should probably not do that.
-- RIght now it replace ",\s+" with ",". It should probably not do that either.
+```shell
+$ echo '{unicode: "\u0f04", multiline string: "Multi\nline\nstring\n[]\n"}' | indent
+{
+  unicode: "༄",
+  multiline string: "Multi\nline\nstring\n[]"
+}
+```
