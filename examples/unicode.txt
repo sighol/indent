@@ -1,5 +1,5 @@
 {
-  0f0a: "\u0f0a",
-  0F03: "\u0F03",
-  0F04: "\u0F04",
+  https://unicode-table.com/en/0F0A/: "\u0F0A",
+  https://unicode-table.com/en/0F03/: "\u0F03",
+  https://unicode-table.com/en/0F04/: "\u0F04",
 }
