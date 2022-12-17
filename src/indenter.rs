@@ -4,8 +4,8 @@ use nom::{
     character::complete::{char, none_of, one_of},
     combinator::eof,
     multi::{many0, many1},
-    sequence::preceded,
     sequence::terminated,
+    sequence::{pair, preceded},
     IResult,
 };
 
@@ -27,8 +27,9 @@ pub fn indent(input: &str, indent_size: u8) -> String {
 
 fn next<'a>(i: &'a str, indent: i32, output: &mut String, indent_size: u8) -> (&'a str, i32) {
     let mut indent = indent;
-    if let Ok((i, s)) = terminated(empty_parens, space)(i) {
-        output.push_str(&s);
+    if let Ok((i, (l, r))) = terminated(empty_parens, space)(i) {
+        output.push(l);
+        output.push(r);
         (i, indent)
     } else if let Ok((i, c)) = terminated(lpar, space)(i) {
         indent += 1;
@@ -83,13 +84,8 @@ fn space(i: &str) -> IResult<&str, &str> {
     take_while(|c| chars.contains(c))(i)
 }
 
-fn empty_parens(i: &str) -> IResult<&str, String> {
-    let (i, start) = terminated(lpar, space)(i)?;
-    let (i, end) = rpar(i)?;
-    let mut s = String::new();
-    s.push(start);
-    s.push(end);
-    Ok((i, s))
+fn empty_parens(i: &str) -> IResult<&str, (char, char)> {
+    pair(terminated(lpar, space), rpar)(i)
 }
 
 fn lpar(i: &str) -> IResult<&str, char> {
