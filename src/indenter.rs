@@ -10,7 +10,7 @@ use nom::{
     IResult,
 };
 
-pub fn indent(input: &str) -> String {
+pub fn indent(input: &str, indent_size: u8) -> String {
     let input = input.to_string();
 
     let mut output = String::new();
@@ -18,7 +18,7 @@ pub fn indent(input: &str) -> String {
 
     let mut chars = input.as_str();
     while !chars.is_empty() {
-        if let Some((i, ind)) = next(chars, indent, &mut output) {
+        if let Some((i, ind)) = next(chars, indent, &mut output, indent_size) {
             chars = i;
             indent = ind;
         } else if let Ok((i, c)) = anychar::<&str, ()>(chars) {
@@ -30,7 +30,12 @@ pub fn indent(input: &str) -> String {
     output
 }
 
-fn next<'a>(i: &'a str, indent: i32, output: &mut String) -> Option<(&'a str, i32)> {
+fn next<'a>(
+    i: &'a str,
+    indent: i32,
+    output: &mut String,
+    indent_size: u8,
+) -> Option<(&'a str, i32)> {
     let mut indent = indent;
     if let Ok((i, s)) = terminated(empty_parens, space)(i) {
         output.push_str(&s);
@@ -38,17 +43,17 @@ fn next<'a>(i: &'a str, indent: i32, output: &mut String) -> Option<(&'a str, i3
     } else if let Ok((i, c)) = terminated(lpar, space)(i) {
         indent += 1;
         output.push(c);
-        newline(indent, output);
+        newline(indent, output, indent_size);
         Some((i, indent))
     } else if let Ok((i, c)) = terminated(rpar, space)(i) {
         indent -= 1;
-        newline(indent, output);
+        newline(indent, output, indent_size);
         output.push(c);
         Some((i, indent))
     } else if let Ok((i, _)) = terminated(comma, space)(i) {
         output.push(',');
         if rpar(i).is_err() {
-            newline(indent, output);
+            newline(indent, output, indent_size);
         }
         Some((i, indent))
     } else if let Ok((i, c)) = terminated(string, space)(i) {
@@ -89,9 +94,9 @@ fn rpar(i: &str) -> IResult<&str, char> {
     one_of(")]}")(i)
 }
 
-fn newline(indent: i32, output: &mut String) {
+fn newline(indent: i32, output: &mut String, indent_size: u8) {
     output.push('\n');
-    for _ in 0..(indent * 2) {
+    for _ in 0..(indent * indent_size as i32) {
         output.push(' ');
     }
 }
@@ -170,7 +175,7 @@ mod test {
             let input = fs::read_to_string(file.path()).unwrap();
             let expected_output_path = format!("{}.output", file.path().display());
             let a = std::path::Path::new(&expected_output_path);
-            let output = indent(&input);
+            let output = indent(&input, 2);
             if std::env::var("OVERWRITE_TEST_FILES").unwrap_or("false".to_string()) == "true" {
                 fs::write(a, &output).unwrap();
             }
@@ -190,7 +195,7 @@ mod test {
               23,
             ]
           }"#};
-        let output = indent(input);
+        let output = indent(input, 2);
         assert_eq!(input, output);
     }
 }
