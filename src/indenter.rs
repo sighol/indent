@@ -1,5 +1,14 @@
-use std::iter::Peekable;
-use std::str::Chars;
+use nom::{
+    branch::alt,
+    bytes::complete::take_while,
+    bytes::complete::{tag, take_while_m_n},
+    character::complete::none_of,
+    character::complete::{anychar, char, one_of},
+    multi::many0,
+    sequence::preceded,
+    sequence::terminated,
+    IResult,
+};
 
 pub fn indent(input: &str) -> String {
     let input = input.to_string();
@@ -7,67 +16,135 @@ pub fn indent(input: &str) -> String {
     let mut output = String::new();
     let mut indent = 0;
 
-    let mut is_inside_string = false;
-
-    let mut chars = input.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '\'' || c == '"' {
-            is_inside_string = !is_inside_string;
+    let mut chars = input.as_str();
+    while !chars.is_empty() {
+        if let Some((i, ind)) = next(chars, indent, &mut output) {
+            chars = i;
+            indent = ind;
+        } else if let Ok((i, c)) = anychar::<&str, ()>(chars) {
             output.push(c);
-            continue;
-        }
-
-        if is_inside_string {
-            output.push(c);
-            continue;
-        }
-
-        if c == '\n' {
-            eat_whitespace(&mut chars);
-        } else if c == ',' {
-            output.push(c);
-            newline(indent, &mut chars, &mut output);
-        } else if is_open(c) {
-            indent += 1;
-            output.push(c);
-            newline(indent, &mut chars, &mut output);
-        } else if is_close(c) {
-            indent -= 1;
-            newline(indent, &mut chars, &mut output);
-            output.push(c);
-        } else {
-            output.push(c);
+            chars = i;
         }
     }
 
     output
 }
 
-/// Push a newline, add indention for the next line, and eat all whitespace.
-fn newline(indent: i32, iterator: &mut Peekable<Chars>, output: &mut String) {
+fn next<'a>(i: &'a str, indent: i32, output: &mut String) -> Option<(&'a str, i32)> {
+    let mut indent = indent;
+    if let Ok((i, s)) = terminated(empty_parens, space)(i) {
+        output.push_str(&s);
+        Some((i, indent))
+    } else if let Ok((i, c)) = terminated(lpar, space)(i) {
+        indent += 1;
+        output.push(c);
+        newline(indent, output);
+        Some((i, indent))
+    } else if let Ok((i, c)) = terminated(rpar, space)(i) {
+        indent -= 1;
+        newline(indent, output);
+        output.push(c);
+        Some((i, indent))
+    } else if let Ok((i, _)) = terminated(comma, space)(i) {
+        output.push(',');
+        if rpar(i).is_err() {
+            newline(indent, output);
+        }
+        Some((i, indent))
+    } else if let Ok((i, c)) = terminated(string, space)(i) {
+        output.push_str(&c);
+        Some((i, indent))
+    } else if let Ok((i, _)) = terminated(char('\n'), space)(i) {
+        Some((i, indent))
+    } else {
+        None
+    }
+}
+
+fn comma(i: &str) -> IResult<&str, ()> {
+    let (i, _) = char(',')(i)?;
+    let (i, _) = space(i)?;
+    Ok((i, ()))
+}
+
+fn space(i: &str) -> IResult<&str, &str> {
+    let chars = " \t\r\n";
+    take_while(move |c| chars.contains(c))(i)
+}
+
+fn empty_parens(i: &str) -> IResult<&str, String> {
+    let (i, start) = lpar(i)?;
+    let (i, end) = rpar(i)?;
+    let mut s = String::new();
+    s.push(start);
+    s.push(end);
+    Ok((i, s))
+}
+
+fn lpar(i: &str) -> IResult<&str, char> {
+    one_of("([{")(i)
+}
+
+fn rpar(i: &str) -> IResult<&str, char> {
+    one_of(")]}")(i)
+}
+
+fn newline(indent: i32, output: &mut String) {
     output.push('\n');
     for _ in 0..(indent * 2) {
         output.push(' ');
     }
-    eat_whitespace(iterator);
 }
 
-fn eat_whitespace(iterator: &mut Peekable<Chars>) {
-    while let Some(peek) = iterator.peek() {
-        if peek.is_whitespace() {
-            iterator.next();
-        } else {
-            break;
-        }
+fn string_delimiter(i: &str) -> IResult<&str, char> {
+    char('"')(i)
+}
+
+fn string(i: &str) -> IResult<&str, String> {
+    let mut s = String::new();
+    let (i, c1) = string_delimiter(i)?;
+    s.push(c1);
+    let (i, inner) = parse_str(i)?;
+    s.push_str(&inner);
+    let (i, c2) = string_delimiter(i)?;
+    s.push(c2);
+    Ok((i, s))
+}
+
+fn escaped(i: &str) -> IResult<&str, String> {
+    let (i, _) = char('\\')(i)?;
+    match one_of("nt\"\\")(i) {
+        Ok((rest, c)) => match c {
+            'n' => Ok((rest, "\\n".to_string())),
+            't' => Ok((rest, "\\t".to_string())),
+            '\'' => Ok((rest, "\\'".to_string())),
+            '\"' => Ok((rest, "\\\"".to_string())),
+            _ => panic!("Didn't now how to handle {}", c),
+        },
+        Err(e) => Err(e),
     }
 }
 
-fn is_open(c: char) -> bool {
-    c == '(' || c == '[' || c == '{'
+fn parse_str(i: &str) -> IResult<&str, String> {
+    let any_string_char = |i| match none_of("\"")(i) {
+        Ok((rest, c)) => Ok((rest, c.to_string())),
+        Err(x) => Err(x),
+    };
+    let string_path = alt((unicode_letter, escaped, any_string_char));
+    let (i, parts) = many0(string_path)(i)?;
+    let joined = parts.join("");
+    Ok((i, joined))
 }
 
-fn is_close(c: char) -> bool {
-    c == ')' || c == ']' || c == '}'
+fn unicode_letter(i: &str) -> IResult<&str, String> {
+    let (rest, digits) = preceded(tag("\\u"), four_digits)(i)?;
+    let num = u32::from_str_radix(digits, 16).expect("Couldn't parse str radix");
+    let c = std::char::from_u32(num).expect("Couldn't create char from parsed str radix");
+    Ok((rest, c.to_string()))
+}
+
+fn four_digits(i: &str) -> IResult<&str, &str> {
+    take_while_m_n(4, 4, |c: char| c.is_ascii_hexdigit())(i)
 }
 
 #[cfg(test)]
@@ -76,6 +153,8 @@ mod test {
 
     use super::*;
     use pretty_assertions::assert_eq;
+
+    use indoc::indoc;
 
     #[test]
     fn test_files() {
@@ -102,5 +181,16 @@ mod test {
                 fs::write(a, &output).unwrap();
             }
         }
+    }
+
+    #[test]
+    fn trailing_comma_no_newline() {
+        let input = indoc! {r#"{
+            "a": [
+              23,
+            ]
+          }"#};
+        let output = indent(input);
+        assert_eq!(input, output);
     }
 }
